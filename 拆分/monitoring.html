@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时监控与用户管理系统</title>
+    <!-- 引入 TailwindCSS 样式库 -->
+    <link rel="stylesheet" href="./CSS/tailwind.min.css">
+    <!-- 引入 Axios 库 -->
+    <script src="./JS/axios.min.js"></script>
+    <!-- 添加web socket支持  -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex">
+
+    <!-- 侧边栏 -->
+    <aside class="w-64 bg-blue-600 text-white p-6 flex flex-col">
+        <h2 class="text-2xl font-bold mb-6 text-center">系统菜单</h2>
+        <nav class="flex flex-col space-y-4">
+             <a href="#" class="hover:bg-blue-700 px-4 py-2 rounded-md" id="addCameraLink" onclick="showAddCameraModal()">添加摄像头</a>
+            <a href="monitoring.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">实时监控</a>
+            <a href="user-management.html" class="hover:bg-blue-700 px-4 py-2 rounded-md" id="userManagementLink">用户管理</a>
+            <a href="check-park.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">检查违停</a>
+            <a href="statistic.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">统计车辆分布高峰期</a>
+            <a href="historical-video.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">查看历史视频</a>
+            <a href="备份/uploading(beifen).html" class="hover:bg-blue-700 px-4 py-2 rounded-md">上传视频</a>
+            <button class="mt-auto bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600"
+                onclick="logout()">退出登录</button>
+        </nav>
+    </aside>
+
+    <!-- 主体内容修改 -->
+    <main class="flex-grow p-6">
+        <section id="monitoring" class="space-y-6">
+            <header class="flex justify-between items-center mb-6">
+                <h1 class="text-xl font-bold">实时监控界面</h1>
+            </header>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="cameraGrid">
+                    <!-- 动态插入摄像头卡片 -->
+                </div>
+        </section>
+    </main>
+
+    <!-- 添加摄像头模态框 -->
+    <div id="addCameraModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg w-96">
+            <h3 class="text-xl font-bold mb-4">添加摄像头</h3>
+            <form id="cameraForm" onsubmit="addCamera(event)">
+                <input type="text" name="name" placeholder="摄像头名称" class="w-full mb-2 p-2 border rounded">
+                <input type="text" name="ip_address" placeholder="IP地址" class="w-full mb-2 p-2 border rounded">
+                <input type="number" name="port" placeholder="端口" class="w-full mb-2 p-2 border rounded">
+                <input type="text" name="url" placeholder="RTSP URL" class="w-full mb-2 p-2 border rounded">
+                <input type="text" name="resolution" placeholder="分辨率" class="w-full mb-2 p-2 border rounded">
+                <input type="number" name="frame_rate" placeholder="帧率" class="w-full mb-2 p-2 border rounded">
+                <input type="text" name="encoding_format" placeholder="编码格式" class="w-full mb-2 p-2 border rounded">
+                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">提交</button>
+                <button type="button" onclick="hideModal()" class="ml-2 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">取消</button>
+                <!-- 在原有表单最后添加 -->
+                <div class="mt-4">
+                    <h4 class="font-bold mb-2">禁停区域配置</h4>
+                    <div id="areaCanvasContainer" class="border p-2 mb-2">
+                        <canvas id="areaCanvas" width="320" height="240"></canvas>
+                    </div>
+                    <button type="button" onclick="addRestrictedArea()" class="bg-blue-100 px-2 py-1 text-sm">
+                        添加区域
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer class="bg-gray-800 text-white text-center py-4 text-sm mt-6">
+        &copy; 2025 实时监控与用户管理系统. 保留所有权利.
+    </footer>
+
+    <script src="./JS/jquery-3.6.0.min.js"></script>
+    <script>
+        // 全局保存视频流命名空间实例
+        let  videoNamespace;
+        // 初始化视频流命名空间（完整修改版）
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. 连接视频流命名空间
+            videoNamespace = io(`http://127.0.0.1:5000/video`, {
+                transports: ['websocket'],
+                path: '/socket.io'
+            });
+
+            // 2. 绑定视频帧监听
+            videoNamespace.on('video_frame', (data) => {
+                const imgElement = document.getElementById(`video_${data.camera_id}`);
+                if (imgElement) {
+                    imgElement.src = `data:image/jpeg;base64,${data.frame}`;
+                }
+            });
+
+            // 3. 连接状态监控
+            videoNamespace.on('connect', () => {
+                console.log('[WebSocket] 视频流命名空间已连接');
+            });
+
+            videoNamespace.on('disconnect', () => {
+                console.warn('[WebSocket] 视频流命名空间断开');
+            });
+        });
+
+        // 视频流房间管理（使用视频流命名空间）
+        function joinCameraRoom(cameraId) {
+            if (videoNamespace) {
+                videoNamespace.emit('join', { room: `camera_${cameraId}` }, () => {
+                    console.log(`Joined camera room ${cameraId}`);
+                });
+            }
+        }
+
+        // 动态创建摄像头卡片
+        function createCameraCard(camera) {
+            const card = document.createElement('div');
+            card.className = 'bg-white rounded-lg shadow-md p-4';
+            card.id = `camera_${camera.id}`;
+            card.innerHTML = `
+                <div class="mb-2">
+                    <h3 class="font-bold">${camera.name}</h3>
+                    <p class="text-sm text-gray-500">${camera.status}</p>
+                </div>
+                <div class="relative">
+                    <video id="video_${camera.id}" class="w-full h-48 object-cover rounded" autoplay muted
+                           style="background: #000">
+                        <div class="video-loading absolute inset-0 flex items-center justify-center text-white">
+                            视频加载中...
+                        </div>
+                    </video>
+                    <!--全屏和暂停按钮-->
+                    <div class="absolute bottom-2 right-2 flex space-x-2">
+                        <button onclick="togglePause('${camera.id}')" class="bg-blue-500 text-white p-1 rounded hover:bg-blue-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </button>
+                        <button onclick="toggleFullScreen('${camera.id}')" class="bg-green-500 text-white p-1 rounded hover:bg-green-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+            return card;
+        }
+
+        // 新增控制函数
+        function togglePause(cameraId) {
+            const video = document.getElementById(`video_${cameraId}`);
+            video.paused ? video.play() : video.pause();
+        }
+
+        function toggleFullScreen(cameraId) {
+            const video = document.getElementById(`video_${cameraId}`);
+            if (video.requestFullscreen) {
+                video.requestFullscreen();
+            } else if (video.webkitRequestFullscreen) { /* Safari */
+                video.webkitRequestFullscreen();
+            } else if (video.msRequestFullscreen) { /* IE11 */
+                video.msRequestFullscreen();
+            }
+        }
+
+        // 添加摄像头表单提交
+        async function addCamera(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+
+            try {
+                const response = await axios.post('http://127.0.0.1:5000/camera/cameras', {
+                    name: formData.get('name'),
+                    ip_address: formData.get('ip_address'),
+                    port: parseInt(formData.get('port')),
+                    url: formData.get('url'),
+                    resolution: formData.get('resolution'),
+                    frame_rate: parseInt(formData.get('frame_rate')),
+                    encoding_format: formData.get('encoding_format')
+                });
+
+                // 创建摄像头卡片
+                const cameraGrid = document.getElementById('cameraGrid');
+                const cameraCard = createCameraCard(response.data.camera);
+                cameraGrid.appendChild(cameraCard);
+
+                // 加入WebSocket房间并监听视频流
+                joinCameraRoom(response.data.camera.id);
+                hideModal();
+            } catch (error) {
+                alert(`添加失败: ${error.response?.data?.message || error.message}`);
+            }
+        }
+
+        // 修改视频帧处理逻辑（修复显示问题）
+        const canvasMap = new Map();
+        document.addEventListener('DOMContentLoaded', () => {
+            videoNamespace.on('video_frame', (data) => {
+                const videoElement = document.getElementById(`video_${data.camera_id}`);
+                if (!videoElement) return;
+
+                // 初始化Canvas和MediaStream（关键修复）
+                if (!canvasMap.has(data.camera_id)) {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // 设置初始尺寸防止空流
+                    canvas.width = 640;  // 默认宽度
+                    canvas.height = 480; // 默认高度
+
+                    const stream = canvas.captureStream(25);
+                    canvasMap.set(data.camera_id, {
+                        canvas,
+                        ctx,
+                        stream,
+                        lastDraw: 0
+                    });
+
+                    // 确保video元素正确绑定媒体流
+                    videoElement.srcObject = stream;
+                    videoElement.play().catch(err => {
+                        console.error('视频播放失败:', err);
+                    });
+                }
+
+                const { canvas, ctx, stream } = canvasMap.get(data.camera_id);
+
+                // 移除频率限制确保实时性
+                const img = new Image();
+                img.onload = () => {
+                    // 动态调整Canvas尺寸
+                    if (canvas.width !== img.width || canvas.height !== img.height) {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                    }
+
+                    // 使用双缓冲绘制
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+
+                    // 强制刷新视频流（兼容性处理）
+                    const track = stream.getVideoTracks()[0];
+                    if (track && track.requestFrame) {
+                        track.requestFrame();
+                    }
+
+                    canvasMap.get(data.camera_id).lastDraw = Date.now();
+                };
+                img.onerror = (e) => {
+                    console.error('图片加载失败:', e);
+                };
+                img.src = `data:image/jpeg;base64,${data.frame}`;
+            });
+        });
+
+
+        // 初始化WebSocket监听
+        socket.on('connect', () => {
+            // 重新加入所有已存在的摄像头房间（如果需要持久化）
+            console.log('WebSocket connected');
+        });
+
+        // 显示/隐藏模态框函数
+        function showAddCameraModal() {
+            document.getElementById('addCameraModal').classList.remove('hidden');
+        }
+
+        function hideModal() {
+            document.getElementById('addCameraModal').classList.add('hidden');
+        }
+
+        //登出函数
+        function logout() {
+            window.location.href = '登录.html';
+        }
+    </script>
+
+</body>
+
+</html>

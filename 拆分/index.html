@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时监控与用户管理系统</title>
+    <!-- 引入 TailwindCSS 样式库 -->
+    <link rel="stylesheet" href="./CSS/tailwind.min.css">
+    <!-- 引入 Axios 库 -->
+    <script src="./JS/axios.min.js"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex">
+
+    <!-- 侧边栏 -->
+    <aside class="w-64 bg-blue-600 text-white p-6 flex flex-col">
+        <h2 class="text-2xl font-bold mb-6 text-center">系统菜单</h2>
+        <nav class="flex flex-col space-y-4">
+            <a href="monitoring.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">实时监控</a>
+            <a href="user-management.html" class="hover:bg-blue-700 px-4 py-2 rounded-md" id="userManagementLink">用户管理</a>
+            <a href="check-park.html" class="h over:bg-blue-700 px-4 py-2 rounded-md">检查违停</a>
+            <a href="statistic.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">统计车辆分布高峰期</a>
+            <a href="historical-video.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">查看历史视频</a>
+            <a href="备份/uploading(beifen).html" class="hover:bg-blue-700 px-4 py-2 rounded-md">上传视频</a>
+            <button class="mt-auto bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600"
+                onclick="logout()">退出登录</button>
+        </nav>
+    </aside>
+
+    <main class="flex-grow p-6">
+    </main>
+    <script src="jquery-3.6.0.min.js"></script>
+    <script>
+        // 页面加载时检查用户角色
+        window.onload = function () {
+            const userRole = localStorage.getItem('userRole');
+            const userManagementLink = document.getElementById('userManagementLink');
+
+            if (!userRole) {
+                // 没有角色信息，跳转到登录页面
+                window.location.href = '登录.html';
+            } else if (userRole !== 'admin' && userRole !== 'user') {
+                // 角色不合法，跳转到登录页面
+                window.location.href = '登录.html';
+            }
+
+            // 仅当角色为"管理员"时显示"用户管理"选项
+            if (userRole === 'admin') {
+                userManagementLink.style.display = 'block';
+            } else {
+                userManagementLink.style.display = 'none';
+            }
+        };
+
+        //登出函数
+        function logout() {
+            window.location.href = '登录.html';
+        }
+    </script>
+</body>
+
+</html>

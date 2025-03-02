@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时监控与用户管理系统</title>
+    <!-- 引入 TailwindCSS 样式库 -->
+    <link rel="stylesheet" href="./CSS/tailwind.min.css">
+    <!-- 引入 Axios 库 -->
+    <script src="./JS/axios.min.js"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex">
+
+    <!-- 侧边栏 -->
+    <aside class="w-64 bg-blue-600 text-white p-6 flex flex-col">
+        <h2 class="text-2xl font-bold mb-6 text-center">系统菜单</h2>
+        <nav class="flex flex-col space-y-4">
+            <a href="monitoring.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">实时监控</a>
+            <a href="user-management.html" class="hover:bg-blue-700 px-4 py-2 rounded-md" id="userManagementLink">用户管理</a>
+            <a href="check-park.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">检查违停</a>
+            <a href="statistic.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">统计车辆分布高峰期</a>
+            <a href="historical-video.html" class="hover:bg-blue-700 px-4 py-2 rounded-md">查看历史视频</a>
+            <a href="备份/uploading(beifen).html" class="hover:bg-blue-700 px-4 py-2 rounded-md">上传视频</a>
+            <button class="mt-auto bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600"
+                onclick="logout()">退出登录</button>
+        </nav>
+    </aside>
+
+
+    <!-- 用户管理界面 -->
+    <main class="flex-grow p-6">
+        <section id="user-management" class="space-y-6">
+            <header class="flex justify-between items-center mb-6">
+                <h1 class="text-xl font-bold">用户管理系统</h1>
+            </header>
+            <div class="mb-4 flex gap-2">
+                <input type="text" id="searchUsername" placeholder="输入用户名搜索" class="flex-grow border p-2 rounded-md"
+                    onkeyup="if(event.key === 'Enter') searchUser()">
+                <button onclick="searchUser()" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
+                    搜索
+                </button>
+            </div>
+            <div class="footer mt-6">
+                <button onclick="loadUsers()"
+                    class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">加载全部用户</button>
+            </div>
+            <div id="user-list"></div>
+        </section>
+    </main>
+
+    <!-- 模态框确认删除 -->
+    <div id="deleteModal" class="modal fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+            <p>确定要删除此用户吗?</p>
+            <button id="confirmDeleteBtn"
+                class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">确认删除</button>
+            <button onclick="closeModal()"
+                class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">取消</button>
+        </div>
+    </div>
+
+    <!-- 编辑弹窗  -->
+    <div id="editModal" class="modal fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-lg text-center w-96">
+            <h2 class="text-xl font-bold mb-4">编辑用户</h2>
+            <form id="editForm" onsubmit="return submitEdit()">
+                <input type="hidden" id="editUserId">
+                <div class="mb-4">
+                    <label class="block text-left mb-2">用户名</label>
+                    <input type="text" id="editUsername" class="border p-2 w-full rounded" required disabled>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-left mb-2">权限</label>
+                    <select id="editRole" class="border p-2 w-full rounded">
+                        <option value="user">普通用户</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-left mb-2">新密码</label>
+                    <input type="password" id="editPassword" class="border p-2 w-full rounded"
+                        placeholder="请输入新密码,若为空则不修改">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeEditModal()"
+                        class="bg-gray-500 text-white px-4 py-2 rounded">取消</button>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="jquery-3.6.0.min.js"></script>
+    <script>
+        // 页面加载时检查用户角色
+        window.onload = function () {
+            const userRole = localStorage.getItem('userRole');
+            const userManagementLink = document.getElementById('userManagementLink');
+
+            if (!userRole) {
+                // 没有角色信息，跳转到登录页面
+                window.location.href = '登录.html';
+            } else if (userRole !== 'admin' && userRole !== 'user') {
+                // 角色不合法，跳转到登录页面
+                window.location.href = '登录.html';
+            }
+
+            // 仅当角色为"管理员"时显示"用户管理"选项
+            if (userRole === 'admin') {
+                userManagementLink.style.display = 'block';
+            } else {
+                userManagementLink.style.display = 'none';
+            }
+        };
+
+        // 加载用户列表
+        function loadUsers(searchTerm = '') {
+            const currentUsername = localStorage.getItem('username');  //本地存储的就是我的登录账号密码
+            const userRole = localStorage.getItem('userRole');
+            const token = localStorage.getItem('token');  // 获取 JWT
+            if (userRole !== 'admin') {
+                alert('权限不足');
+                return;
+            }
+            axios.post('http://127.0.0.1:5000/api/users', {
+                username: currentUsername,
+                search: searchTerm
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${token}`  // 将 JWT 添加到请求头
+                }
+            })
+                .then(response => {
+                    const users = response.data;
+                    const userList = document.getElementById('user-list');
+                    userList.innerHTML = '';
+                    users.forEach(user => {
+                        const canEdit = (userRole === 'admin' && user.role === 'user') || currentUsername === user.username;
+                        const buttons = [];
+                        if (canEdit) {
+                            // 只有当不是编辑自己的账号时，才添加删除按钮
+                            if (currentUsername !== user.username) {
+                                buttons.push(
+                                    `<button class="text-blue-600 hover:text-blue-800 mr-2"
+                        onclick="openEditModal(${user.id}, '${user.username}', '${user.role}')">编辑</button>`,
+                                    `<button class="text-red-600 hover:text-red-800"
+                        onclick="openDeleteModal(${user.id})">删除</button>`
+                                );
+                            } else {
+                                // 只添加编辑按钮，不添加删除按钮
+                                buttons.push(
+                                    `<button class="text-blue-600 hover:text-blue-800"
+                        onclick="openEditModal(${user.id}, '${user.username}', '${user.role}')">编辑</button>`
+                                );
+                            }
+                        }
+
+                        const userItem = document.createElement('div');
+                        userItem.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-md', 'space-y-2');
+                        // 检查是否是当前用户，若是，添加“我的”标签
+                        const isCurrentUser = currentUsername === user.username
+                            ? `<span class="bg-blue-600 text-white px-2 py-1 rounded-full text-sm">我</span>`
+                            : '';
+                        userItem.innerHTML = `
+                <h3 class="font-bold">${user.username}  ${isCurrentUser}</h3>
+                <p>权限：${user.role}</p>
+                ${buttons.join('')}
+            `;
+                        userList.appendChild(userItem);
+                    });
+                })
+                .catch(error => {
+                    console.error('加载失败:', error);
+                    alert('加载用户列表失败');
+                });
+        }
+
+
+        let currentEditingUserId = null;
+        let currentDeletingUserId = null;
+
+        // 打开编辑模态框
+        function openEditModal(userId, username, role) {
+            currentEditingUserId = userId;  //这是我要修改的目标对象的id
+            document.getElementById('editUsername').value = username;
+            document.getElementById('editRole').value = role;
+            document.getElementById('editModal').classList.remove('hidden');
+            const roleSelect = document.getElementById('editRole');
+            roleSelect.innerHTML = '';  // 清空选项
+            // 根据当前用户权限动态生成选项
+            const userRole = localStorage.getItem('userRole');
+            if (userRole === 'admin') {
+                roleSelect.innerHTML = `
+        <option value="user" ${role === 'user' ? 'selected' : ''}>普通用户</option>
+        <option value="admin" ${role === 'admin' ? 'selected' : ''}>管理员</option>
+    `;
+            }
+            // 禁用用户名输入
+            document.getElementById('editUsername').disabled = true;
+            // 清空密码框
+            document.getElementById('editPassword').value = '';
+        }
+        //关闭编辑模块框
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+        //提交函数
+        function submitEdit() {
+            const newRole = document.getElementById('editRole').value;
+            const newPassword = document.getElementById('editPassword').value;
+            const currentUsername = localStorage.getItem('editUsername');   //这是登录的账号的username
+            const token = localStorage.getItem('token');  // 获取 JWT
+
+            axios.put(`http://127.0.0.1:5000/api/users/${currentEditingUserId}`, {  //传输的除了username都是需要修改的数据
+                username: currentUsername,
+                role: newRole,
+                password: newPassword
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${token}`  // 将 JWT 添加到请求头
+                }
+            })
+                .then(response => {
+                    if (response.status === 200) {
+                        alert('更新成功');
+                        loadUsers();
+                        closeEditModal();
+                    } else {
+                        alert(`更新失败: ${response.data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('更新失败:', error);
+                    // 清空密码框
+                    document.getElementById('editPassword').value = '';
+                    // 检查是否有后端返回的错误信息
+                    if (error.response && error.response.data && error.response.data.message) {
+                        // 显示后端返回的错误信息
+                        alert(`更新失败: ${error.response.data.message}`);
+                    } else {
+                        // 如果没有后端返回的错误信息，显示通用错误提示
+                        alert('更新失败，请稍后再试。');
+                    }
+                });
+            return false; // 阻止表单默认提交
+        }
+
+        //打开删除模块
+        function openDeleteModal(userId) {
+            currentDeletingUserId = userId;
+            document.getElementById('deleteModal').classList.remove('hidden');
+        }
+        //关闭删除模块
+        function closeModal() {
+            document.getElementById('deleteModal').classList.add('hidden');
+        }
+
+        // 修改确认删除事件
+        document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
+            const token = localStorage.getItem('token');  // 获取 JWT
+            const currentUsername = localStorage.getItem('username');
+            axios.delete(`http://127.0.0.1:5000/api/users/${currentDeletingUserId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`  // 将 JWT 添加到请求头
+                }
+            })
+                .then(response => {
+                    if (response.status === 200) {
+                        loadUsers();
+                        closeModal();
+                    }
+                })
+                .catch(error => {
+                    console.error('删除失败:', error);
+                    // 检查是否有后端返回的错误信息
+                    if (error.response && error.response.data && error.response.data.message) {
+                        // 显示后端返回的错误信息
+                        alert(`删除失败: ${error.response.data.message}`);
+                    } else {
+                        // 如果没有后端返回的错误信息，显示通用错误提示
+                        alert('删除失败');
+                    }
+                });
+        });
+
+        //搜索函数
+        function searchUser() {
+            const searchTerm = document.getElementById('searchUsername').value;
+            loadUsers(searchTerm);
+        }
+        //登出函数
+        function logout() {
+            window.location.href = '登录.html';
+        }
+    </script>
+
+</body>
+
+</html>

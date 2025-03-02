@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户登录与注册</title>
+  <!-- 引入 jQuery 用于 AJAX -->
+  <script src="./JS/jquery-3.6.0.min.js"></script>
+  <!-- 引入 TailwindCSS 用于样式 -->
+  <link rel="stylesheet" href="./CSS/tailwind.min.css">
+  <style>
+    body {
+      background-image: url('https://source.unsplash.com/1600x900/?car,traffic'); /* 车辆相关的背景图片 */
+      background-size: cover;
+      background-position: center;
+    }
+  </style>
+</head>
+
+<body class="flex flex-col items-center justify-center min-h-screen bg-gray-100 bg-opacity-90">
+  <!-- 顶栏 -->
+  <header class="w-full bg-blue-600 text-white p-4 fixed top-0 z-50">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold">智能车辆管理系统</h1>
+      <nav>
+        <a href="登录.html" class="text-white hover:text-gray-200 px-4">首页</a>
+        <a href="#" class="text-white hover:text-gray-200 px-4">关于我们</a>
+        <a href="#" class="text-white hover:text-gray-200 px-4">联系我们</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- 登录和注册表单容器 -->
+  <div id="auth-container" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full mt-16">
+    <!-- 标题 -->
+    <h1 id="form-title" class="text-2xl font-bold text-center mb-6">用户登录</h1>
+
+    <!-- 登录与注册表单 -->
+    <form id="auth-form">
+      <!-- 用户名输入框 -->
+      <div class="mb-4">
+        <label for="username" class="block text-gray-700 text-sm font-bold mb-2">用户名</label>
+        <input type="text" id="username" name="username"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="请输入用户名" required>
+      </div>
+
+      <!-- 密码输入框 -->
+      <div class="mb-4">
+        <label for="password" class="block text-gray-700 text-sm font-bold mb-2">密码</label>
+        <input type="password" id="password" name="password"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="请输入密码" required>
+      </div>
+
+      <!-- 确认密码输入框（注册时显示） -->
+      <div id="confirm-password-field" class="mb-4" style="display: none;">
+        <label for="confirm-password" class="block text-gray-700 text-sm font-bold mb-2">确认密码</label>
+        <input type="password" id="confirm-password" name="confirm-password"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="请再次输入密码">
+      </div>
+
+      <!-- 提交按钮 -->
+      <button type="submit" id="submit-button" class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600">
+        登录
+      </button>
+    </form>
+
+    <!-- 模式切换链接 -->
+    <p class="text-center mt-4">
+      <span id="toggle-text">没有账号？</span>
+      <button id="toggle-button" class="text-blue-500 hover:underline">
+        去注册
+      </button>
+    </p>
+
+    <!-- 修改密码按钮 -->
+    <p class="text-center mt-4">
+      <button id="toggle-password-button" class="text-blue-500 hover:underline">修改密码</button>
+    </p>
+  </div>
+
+  <!-- 修改密码 -->
+  <div id="change-password-container" class="bg-white p-8 rounded-lg shadow-md max-w-md w-full hidden mt-16">
+    <h1 class="text-2xl font-bold text-center mb-6">修改密码</h1>
+    <form id="change-password-form">
+      <div class="mb-4">
+        <label for="change-username" class="block text-gray-700 text-sm font-bold mb-2">用户名</label>
+        <input type="text" id="change-username" name="username"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="请输入用户名" required>
+      </div>
+      <div class="mb-4">
+        <label for="old-password" class="block text-gray-700 text-sm font-bold mb-2">原密码</label>
+        <input type="password" id="old-password" name="old_password"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="请输入原密码" required>
+      </div>
+      <div class="mb-4">
+        <label for="new-password" class="block text-gray-700 text-sm font-bold mb-2">新密码</label>
+        <input type="password" id="new-password" name="new_password"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="请输入新密码" required>
+      </div>
+      <div class="mb-4">
+        <label for="confirm-new-password" class="block text-gray-700 text-sm font-bold mb-2">确认新密码</label>
+        <input type="password" id="confirm-new-password" name="confirm_new_password"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="请再次输入新密码" required>
+      </div>
+      <button type="submit" class="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600">
+        修改密码
+      </button>
+    </form>
+    <p class="text-center mt-4">
+      <button id="back-to-login" class="text-blue-500 hover:underline">返回登录</button>
+    </p>
+  </div>
+
+  <script>
+    // 获取页面元素
+    const authForm = document.getElementById('auth-form'); //登录注册表单
+    const submitButton = document.getElementById('submit-button'); //提交按键
+    const formTitle = document.getElementById('form-title'); //表头
+    const toggleText = document.getElementById('toggle-text'); //提示内容
+    const toggleButton = document.getElementById('toggle-button'); //登录与注册切换按键
+
+    // 当前表单是否处于登录模式（默认为 true）
+    let isLogin = true;
+
+    /**
+     * 切换登录和注册模式
+     */
+    toggleButton.addEventListener('click', () => {
+      isLogin = !isLogin; //登录模式切换到注册模式
+
+      const confirmField = document.getElementById('confirm-password-field');
+      const confirmInput = document.getElementById('confirm-password');
+
+      if (isLogin) {
+        // 登录模式：隐藏确认密码，移除必填
+        confirmField.style.display = 'none';
+        confirmInput.required = false;
+      } else {
+        // 注册模式：显示确认密码，设置必填
+        confirmField.style.display = 'block';
+        confirmInput.required = true;
+      }
+
+      // 根据当前模式更新界面内容
+      if (isLogin) {
+        formTitle.textContent = '用户登录';
+        toggleText.textContent = '没有账号？';
+        toggleButton.textContent = '去注册';
+        submitButton.textContent = '登录';
+      } else {
+        formTitle.textContent = '用户注册';
+        toggleText.textContent = '已有账号？';
+        toggleButton.textContent = '去登录';
+        submitButton.textContent = '注册';
+      }
+    });
+
+    /**
+     * 处理表单提交事件
+     */
+    authForm.addEventListener('submit', function (event) {
+      event.preventDefault(); // 阻止默认表单提交行为，目的是为了阻止页面刷新
+
+      // 获取用户输入的用户名和密码
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      // 注册模式下检查两次密码是否一致
+      if (!isLogin) {
+        const confirmPassword = document.getElementById('confirm-password').value;
+        if (password !== confirmPassword) {
+          alert('两次输入的密码不一致！');
+          return; // 阻止提交
+        }
+      }
+      // 根据当前模式发送登录或注册请求
+      const endpoint = isLogin ? 'http://127.0.0.1:5000/api/login' : 'http://127.0.0.1:5000/api/register'; // Flask 后端 API 接口
+
+      // 使用 jQuery AJAX 进行请求
+      $.ajax({
+        url: endpoint,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        data: JSON.stringify({            // 将数据转换为 JSON 字符串
+          username: username,
+          password: password,
+        }),
+        dataType: "json",
+        success: function (response) {
+          // 请求成功后提示用户
+          alert(`${isLogin ? '登录' : '注册'}成功：${response.message}`); // message是后端json响应对象
+
+          // 登录成功后判断用户角色并跳转
+          if (isLogin) {
+            // 保存 JWT 到 localStorage
+            localStorage.setItem('token', response.token);
+            // 保存角色信息到 localStorage
+            localStorage.setItem('userRole', response.role);
+            localStorage.setItem('username', response.username);
+            //登陆成功后跳转界面
+            window.location.href = 'index.html';
+          }
+
+          // 注册成功后自动切换回登录模式
+          if (!isLogin) toggleButton.click();
+        },
+        error: function (xhr, status, error) {
+          // 请求失败时提示用户
+          const errorMessage = xhr.responseJSON?.message || '请求失败，请稍后再试。';
+          alert(`${isLogin ? '登录' : '注册'}失败：${errorMessage}`);
+        }
+      });
+    });
+
+    //修改密码
+    // 新增元素获取
+    const authContainer = document.getElementById('auth-container');
+    const changePasswordContainer = document.getElementById('change-password-container');
+    const togglePasswordButton = document.getElementById('toggle-password-button'); // 注意修正ID拼写
+    const backToLoginButton = document.getElementById('back-to-login');
+
+    // 切换至修改密码界面
+    togglePasswordButton.addEventListener('click', () => {
+      authContainer.classList.add('hidden');
+      changePasswordContainer.classList.remove('hidden');
+    });
+
+    // 返回登录界面
+    backToLoginButton.addEventListener('click', () => {
+      authContainer.classList.remove('hidden');
+      changePasswordContainer.classList.add('hidden');
+    });
+
+    // 处理修改密码表单提交
+    document.getElementById('change-password-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const username = document.getElementById('change-username').value;
+      const oldPassword = document.getElementById('old-password').value;
+      const newPassword = document.getElementById('new-password').value;
+      const confirmNewPassword = document.getElementById('confirm-new-password').value;
+
+      if (newPassword !== confirmNewPassword) {
+        alert('两次输入的新密码不一致！');
+        return;
+      }
+
+      $.ajax({
+        url: 'http://127.0.0.1:5000/api/change-password',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+          username: username,
+          old_password: oldPassword,
+          new_password: newPassword
+        }),
+        success: function(response) {
+          alert('密码修改成功！');
+          backToLoginButton.click(); // 自动返回登录界面
+        },
+        error: function(xhr) {
+          const errorMsg = xhr.responseJSON?.message || '修改失败，请检查输入';
+          alert(`错误：${errorMsg}`);
+        }
+      });
+    });
+  </script>
+
+</body>
+
+</html>
